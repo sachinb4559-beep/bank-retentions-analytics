@@ -7,7 +7,8 @@ st.set_page_config(page_title="Retention Analytics", layout="wide")
 # ---------- 1. Load & validate ----------
 @st.cache_data
 def load():
-    df = pd.read_csv("European_Bank.csv")
+    df = pd.read_csv(...)
+    df = pd.read_csv(next(Path(__file__).parent.rglob("*.csv")))
     df = df.drop(columns=[c for c in ["Year", "Surname"] if c in df.columns])
     return df
 
