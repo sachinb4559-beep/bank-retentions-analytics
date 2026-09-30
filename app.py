@@ -1,16 +1,22 @@
+import glob
+import os
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
 st.set_page_config(page_title="Retention Analytics", layout="wide")
 
+
 # ---------- 1. Load & validate ----------
 @st.cache_data
 def load():
-    df = pd.read_csv(...)
-    df = pd.read_csv(next(Path(__file__).parent.rglob("*.csv")))
+    here = os.path.dirname(os.path.abspath(__file__))
+    files = glob.glob(os.path.join(here, "**", "*.csv"), recursive=True)
+    df = pd.read_csv(files[0])
     df = df.drop(columns=[c for c in ["Year", "Surname"] if c in df.columns])
     return df
+
 
 df = load()
 checks = {
@@ -23,6 +29,7 @@ checks = {
 # ---------- 2. Engagement classification ----------
 hb_cut = df.loc[df.Balance > 0, "Balance"].quantile(0.75)
 
+
 def segment(r):
     if r.IsActiveMember == 0 and r.Balance >= hb_cut:
         return "Inactive High-Balance"
@@ -31,6 +38,7 @@ def segment(r):
     if r.NumOfProducts == 1:
         return "Active Low-Product"
     return "Active Engaged"
+
 
 df["Segment"] = df.apply(segment, axis=1)
 
@@ -59,11 +67,13 @@ with st.expander("Data validation"):
     for k, v in checks.items():
         st.write(("✅ " if v else "❌ ") + k)
 
+
 def churn_bar(data, col, title):
     g = data.groupby(col, observed=True).Exited.agg(["mean", "count"]).reset_index()
     g["Churn %"] = (g["mean"] * 100).round(1)
     fig = px.bar(g, x=col, y="Churn %", text="Churn %", hover_data=["count"], title=title)
     return fig, g
+
 
 t1, t2, t3, t4 = st.tabs(["Engagement vs Churn", "Product Utilization", "High-Value Disengaged", "Retention Strength"])
 
@@ -94,9 +104,9 @@ with t2:
     pdi = (1 - df.groupby("NumOfProducts").Exited.mean()) * 100
     st.dataframe(pdi.round(1).rename("Retention %"))
     st.info("Note: churn is NOT linear in products: 2 products retain best; 3-4 products churn heavily (small groups).")
-    mix = f.groupby(["NumOfProducts", "HasCrCard", "IsActiveMember"]).Exited.agg(["mean", "count"]).reset_index()
     st.plotly_chart(px.density_heatmap(f, x="NumOfProducts", y="IsActiveMember", z="Exited",
-                                       histfunc="avg", title="Churn by products × activity"), use_container_width=True)
+                                       histfunc="avg", title="Churn by products × activity"),
+                    use_container_width=True)
 
 # ---------- Tab 3 ----------
 with t3:
@@ -112,7 +122,8 @@ with t3:
         ["CustomerId", "Geography", "Age", "Tenure", "Balance", "EstimatedSalary",
          "Balance/Salary", "NumOfProducts", "RSI"]], use_container_width=True)
     st.download_button("Download list (CSV)", risk.to_csv(index=False), "at_risk_premium.csv")
-    samp = f.sample(min(3000, len(f)), random_state=1).assign(Churned=lambda d: d.Exited.map({0: "Stayed", 1: "Churned"}))
+    samp = f.sample(min(3000, len(f)), random_state=1).assign(
+        Churned=lambda d: d.Exited.map({0: "Stayed", 1: "Churned"}))
     st.plotly_chart(px.scatter(samp, x="EstimatedSalary", y="Balance", color="Churned", opacity=0.5,
                                title="Salary vs balance (mismatch detection)"), use_container_width=True)
 
